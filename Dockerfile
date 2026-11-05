@@ -1,9 +1,10 @@
 # Multi-stage minimal build for Aegis zero-trust agentic gateway
-FROM golang:1.24-alpine AS builder
+FROM golang:alpine AS builder
 
 WORKDIR /app
 
-# Install build tools
+# Enable automatic toolchain resolution & install build tools
+ENV GOTOOLCHAIN=auto
 RUN apk add --no-cache git ca-certificates
 
 # Cache dependencies
