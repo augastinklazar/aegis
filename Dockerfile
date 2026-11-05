@@ -14,8 +14,9 @@ RUN go mod download
 # Copy source
 COPY . .
 
-# Build static binary
+# Build static binaries
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/bin/aegis ./cmd/aegis
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/bin/aegis-cloud ./cmd/aegis-cloud
 
 # Production image
 FROM alpine:3.20
@@ -24,8 +25,9 @@ RUN apk add --no-cache ca-certificates tzdata sqlite
 
 WORKDIR /etc/aegis
 
-# Copy compiled binary and presets
+# Copy compiled binaries and presets
 COPY --from=builder /app/bin/aegis /usr/local/bin/aegis
+COPY --from=builder /app/bin/aegis-cloud /usr/local/bin/aegis-cloud
 COPY policies /etc/aegis/policies
 
 ENV AEGIS_PORT=8080

@@ -205,12 +205,34 @@ await secureFetch("/v1/refunds", { method: "POST", body: JSON.stringify({ amount
 
 ## Production Deployment
 
-### Docker
+### 1. Self-Hosted Local Gateway (Free & MIT)
 ```bash
 docker run -d -p 8080:8080 \
   -v aegis-data:/etc/aegis/data \
   -e AEGIS_VAULT_KEY="your-32-byte-master-key-hex" \
   ghcr.io/augastinklazar/aegis:latest
+```
+
+### 2. Multi-Tenant Paid Cloud API (`aegis-cloud`)
+Deploy the hosted cloud server on Koyeb, Cloud Run, or Railway with Turso (libSQL) and Polar.sh / RapidAPI billing middleware:
+```bash
+docker run -d -p 8080:8080 \
+  -e AEGIS_DATABASE_URL="libsql://your-db.turso.io" \
+  -e AEGIS_RAPIDAPI_SECRET="your-rapidapi-proxy-secret" \
+  -e AEGIS_UPGRADE_URL="https://polar.sh/augastinklazar" \
+  --entrypoint "/usr/local/bin/aegis-cloud" \
+  ghcr.io/augastinklazar/aegis:latest
+```
+
+#### Paid API Endpoints:
+- `POST /v1/evaluate`: Stateless 4ms guardrail evaluating proposed SQL, Bash commands, PII, and CEL policies.
+- `POST /v1/escalate`: Hosted mobile Passkey approval relay for local agent proxies.
+- `GET /v1/audit/cloud`: Multi-tenant compliance audit trail stream.
+- `POST /v1/webhooks/polar`: Merchant-of-Record automated subscription provisioning.
+
+Connect your local proxy in one command:
+```bash
+aegis login ag_live_your_key_here
 ```
 
 ---

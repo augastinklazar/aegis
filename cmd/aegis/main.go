@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -43,6 +44,8 @@ func main() {
 		runVault(os.Args[2:])
 	case "token":
 		runToken(os.Args[2:])
+	case "login":
+		runLogin(os.Args[2:])
 	case "verify":
 		runVerify(os.Args[2:])
 	case "help", "-h", "--help":
@@ -71,6 +74,7 @@ func printUsage() {
 	fmt.Println("  init        Initialize local vault database and master keys")
 	fmt.Println("  vault       Manage encrypted upstream API keys and credentials")
 	fmt.Println("  token       Issue and inspect task-scoped phantom tokens")
+	fmt.Println("  login       Connect to Aegis Cloud (hosted approvals & audit logs)")
 	fmt.Println("  verify      Verify cryptographic Merkle hash chain integrity")
 	fmt.Println("\nRun 'aegis <command> --help' for details on specific commands.")
 }
@@ -80,11 +84,17 @@ func runServe(args []string) {
 	port := fs.String("port", "", "HTTP listen port (default: 8080 or AEGIS_PORT)")
 	dbPath := fs.String("db", "", "SQLite DB path (default: aegis.db or AEGIS_DB_PATH)")
 	policiesDir := fs.String("policies", "", "Policies directory (default: policies)")
+	cloudKeyFlag := fs.String("cloud-key", "", "Aegis Cloud API key (ag_live_...) for hosted approvals")
 	fs.Parse(args)
 
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("failed loading config: %v", err)
+	}
+
+	cloudKey := *cloudKeyFlag
+	if cloudKey == "" {
+		cloudKey = loadStoredCloudKey()
 	}
 
 	if *port != "" {
@@ -309,6 +319,9 @@ func runServe(args []string) {
 		json.NewEncoder(w).Encode(map[string]string{"status": "saved", "service_id": body.ServiceID})
 	})
 
+	// Stateless Evaluation API
+	mux.Handle("POST /v1/evaluate", sandbox.NewEvaluateHandler(sb))
+
 	// Policy Simulator
 	mux.HandleFunc("POST /v1/sandbox/simulate", func(w http.ResponseWriter, r *http.Request) {
 		var ctx sandbox.EvalContext
@@ -333,9 +346,17 @@ func runServe(args []string) {
 	go func() {
 		log.Printf("🛡️ Aegis Gateway live at %s", cfg.BaseURL)
 		log.Printf("   ├─ Dashboard: %s/", cfg.BaseURL)
+		log.Printf("   ├─ Stateless Evaluate: POST %s/v1/evaluate", cfg.BaseURL)
 		log.Printf("   ├─ Token Exchange: POST %s/v1/oauth/token", cfg.BaseURL)
 		log.Printf("   ├─ Proxy Boundary: %s/proxy/{service}/*", cfg.BaseURL)
 		log.Printf("   └─ Audit Stream: %s/audit.html", cfg.BaseURL)
+
+		if cloudKey == "" {
+			fmt.Printf("\n[Aegis] Local proxy running on :%s.\n👉 Want mobile Passkey approvals & cloud compliance logs? Run: aegis login\n\n", cfg.Port)
+		} else {
+			fmt.Printf("\n[Aegis] Local proxy running on :%s. ✓ Connected to Aegis Cloud Relay.\n\n", cfg.Port)
+		}
+
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("server error: %v", err)
 		}
@@ -561,4 +582,62 @@ func runVerify(args []string) {
 		fmt.Printf("  Details: %s\n", rep.Error)
 		os.Exit(1)
 	}
+}
+
+type StoredConfig struct {
+	CloudKey string `json:"cloud_key"`
+}
+
+func getConfigFile() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = "."
+	}
+	dir := filepath.Join(home, ".aegis")
+	os.MkdirAll(dir, 0700)
+	return filepath.Join(dir, "config.json")
+}
+
+func loadStoredCloudKey() string {
+	if k := os.Getenv("AEGIS_CLOUD_KEY"); k != "" {
+		return k
+	}
+	f := getConfigFile()
+	data, err := os.ReadFile(f)
+	if err != nil {
+		return ""
+	}
+	var c StoredConfig
+	json.Unmarshal(data, &c)
+	return c.CloudKey
+}
+
+func saveStoredCloudKey(key string) error {
+	f := getConfigFile()
+	c := StoredConfig{CloudKey: key}
+	b, _ := json.MarshalIndent(c, "", "  ")
+	return os.WriteFile(f, b, 0600)
+}
+
+func runLogin(args []string) {
+	var key string
+	if len(args) > 0 {
+		key = args[0]
+	} else {
+		fmt.Print("Enter your Aegis Cloud API Key (ag_live_...): ")
+		fmt.Scanln(&key)
+	}
+
+	key = strings.TrimSpace(key)
+	if key == "" {
+		fmt.Fprintln(os.Stderr, "Error: No API key provided")
+		os.Exit(1)
+	}
+
+	if err := saveStoredCloudKey(key); err != nil {
+		log.Fatalf("failed saving credentials: %v", err)
+	}
+
+	fmt.Println("✓ Successfully logged into Aegis Cloud!")
+	fmt.Println("  Mobile Passkey approvals and hosted compliance audit relay are now active.")
 }
