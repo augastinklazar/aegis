@@ -229,10 +229,19 @@ func (gw *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		decision, err := gw.parkManager.Park(parkedReq)
 		if err != nil || decision == nil || !decision.Approved {
 			denialReason := "Human reviewer rejected action"
-			if decision != nil && decision.DenialReason != "" {
-				denialReason = decision.DenialReason
+			approver := ""
+			approverSig := ""
+			if decision != nil {
+				if decision.DenialReason != "" {
+					denialReason = decision.DenialReason
+				}
+				approver = decision.Approver
+				approverSig = decision.ApproverSig
 			}
-			gw.auditLogger.Log(pt.AgentID, pt.TaskID, serviceID, r.Method+" "+targetSubPath, bodyBytes, "ESCALATED_DENIED", decision.Approver, decision.ApproverSig)
+			if err != nil {
+				denialReason = err.Error()
+			}
+			gw.auditLogger.Log(pt.AgentID, pt.TaskID, serviceID, r.Method+" "+targetSubPath, bodyBytes, "ESCALATED_DENIED", approver, approverSig)
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusForbidden)
