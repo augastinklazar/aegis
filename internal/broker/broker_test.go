@@ -2,6 +2,7 @@ package broker
 
 import (
 	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -19,7 +20,8 @@ func TestPhantomManager_Quotas(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	dbPath := filepath.Join(tmpDir, "broker.db")
-	db, err := sql.Open("sqlite", dbPath)
+	dsn := fmt.Sprintf("%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)", dbPath)
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +57,10 @@ func TestPhantomManager_Quotas(t *testing.T) {
 	}
 
 	// Service Mismatch test
-	pt2, _ := pm.IssueToken("agent_test", "task_02", "user_alice", "github_api", nil, nil, 5*time.Minute, 5)
+	pt2, err := pm.IssueToken("agent_test", "task_02", "user_alice", "github_api", nil, nil, 5*time.Minute, 5)
+	if err != nil {
+		t.Fatalf("issue token 2 failed: %v", err)
+	}
 	_, err = pm.ValidateAndConsume(pt2.Token, "stripe_prod")
 	if err == nil {
 		t.Fatal("expected error on service mismatch, got nil")
@@ -70,7 +75,11 @@ func TestRFC8693_TokenExchange(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	dbPath := filepath.Join(tmpDir, "broker_rfc.db")
-	db, _ := sql.Open("sqlite", dbPath)
+	dsn := fmt.Sprintf("%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)", dbPath)
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer db.Close()
 
 	pm, _ := NewPhantomManager(db)

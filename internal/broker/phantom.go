@@ -172,9 +172,7 @@ func (pm *PhantomManager) ValidateAndConsume(tok, service string) (*PhantomToken
 		}
 		pt.RemainingCalls--
 		// Update DB
-		go func(t string, remaining int) {
-			pm.db.Exec(`UPDATE phantom_tokens SET remaining_calls = ? WHERE token = ?`, remaining, t)
-		}(tok, pt.RemainingCalls)
+		pm.db.Exec(`UPDATE phantom_tokens SET remaining_calls = ? WHERE token = ?`, pt.RemainingCalls, tok)
 	}
 
 	return pt, nil

@@ -2,6 +2,7 @@ package sandbox
 
 import (
 	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -111,7 +112,11 @@ func TestCELEngine_YAMLPolicy(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	dbPath := filepath.Join(tmpDir, "counter.db")
-	db, _ := sql.Open("sqlite", dbPath)
+	dsn := fmt.Sprintf("%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)", dbPath)
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer db.Close()
 	counter, _ := NewStateCounter(db)
 

@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"database/sql"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -28,12 +27,13 @@ func TestGateway_CredentialInjection(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	dbPath := filepath.Join(tmpDir, "proxy.db")
-	db, _ := sql.Open("sqlite", dbPath)
-	defer db.Close()
-
 	masterKey := []byte("01234567890123456789012345678901")
-	v, _ := vault.NewVault(dbPath, masterKey)
+	v, err := vault.NewVault(dbPath, masterKey)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer v.Close()
+	db := v.DB()
 
 	// 1. Store real upstream secret in vault
 	realSecret := "sk_test_mock_stripe_secret_key"
