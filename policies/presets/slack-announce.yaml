@@ -1,0 +1,13 @@
+# policies/presets/slack-announce.yaml
+version: "1.0"
+agent_id: "*"
+upstream_service: "slack_api"
+rules:
+  - name: "block_everyone_mentions"
+    match: "request.path.endsWith('/chat.postMessage')"
+    deny_if: "string(request.body.text).contains('<!everyone>') || string(request.body.text).contains('<!channel>')"
+
+  - name: "escalate_general_posts"
+    match: "request.path.endsWith('/chat.postMessage')"
+    escalate_if: "string(request.body.channel) == 'C_GENERAL'"
+    approvers: ["slack:admin"]

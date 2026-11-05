@@ -1,0 +1,12 @@
+# policies/presets/postgres-readonly.yaml
+version: "1.0"
+agent_id: "*"
+upstream_service: "*"
+rules:
+  - name: "block_destructive_database_queries"
+    match: "request.tool == 'execute_query' || request.path == '/v1/sql'"
+    deny_if: "sql.is_destructive(string(request.args.query))"
+
+  - name: "allow_safe_select"
+    match: "request.tool == 'execute_query' || request.path == '/v1/sql'"
+    allow_if: "!sql.is_destructive(string(request.args.query))"

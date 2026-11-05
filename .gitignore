@@ -1,0 +1,30 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+dist/
+
+# SQLite databases & logs
+*.db
+*.db-wal
+*.db-shm
+*.log
+
+# Test coverage
+coverage.txt
+profile.out
+
+# IDEs & OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Node & Python
+node_modules/
+__pycache__/
+*.egg-info/
+.pytest_cache/

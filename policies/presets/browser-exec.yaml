@@ -1,0 +1,8 @@
+# policies/presets/browser-exec.yaml
+version: "1.0"
+agent_id: "*"
+upstream_service: "browser_mcp"
+rules:
+  - name: "block_bank_navigation"
+    match: "request.tool == 'navigate_page'"
+    deny_if: "string(request.args.url).contains('chase.com') || string(request.args.url).contains('bankofamerica.com')"

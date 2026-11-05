@@ -1,0 +1,13 @@
+# policies/presets/aws-guard.yaml
+version: "1.0"
+agent_id: "*"
+upstream_service: "aws_api"
+rules:
+  - name: "block_ec2_termination"
+    match: "request.path.contains('TerminateInstances') || (has(request.body.Action) && request.body.Action == 'TerminateInstances')"
+    deny_if: "true"
+
+  - name: "escalate_rds_delete"
+    match: "request.path.contains('DeleteDBInstance') || (has(request.body.Action) && request.body.Action == 'DeleteDBInstance')"
+    escalate_if: "true"
+    approvers: ["discord:devops"]

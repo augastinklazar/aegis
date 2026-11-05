@@ -1,0 +1,19 @@
+# policies/presets/database-crud-budget.yaml
+version: "1.0"
+agent_id: "*"
+upstream_service: "*"
+rules:
+  - name: "budget_db_mutations"
+    match: "request.tool == 'db_mutate'"
+    allow_if: "int(request.args.row_count) <= 100"
+    escalate_if: "int(request.args.row_count) > 100"
+    approvers: ["telegram:dba"]
+---
+# policies/presets/browser-exec.yaml
+version: "1.0"
+agent_id: "*"
+upstream_service: "browser_mcp"
+rules:
+  - name: "block_bank_navigation"
+    match: "request.tool == 'navigate_page'"
+    deny_if: "string(request.args.url).contains('chase.com') || string(request.args.url).contains('bankofamerica.com')"

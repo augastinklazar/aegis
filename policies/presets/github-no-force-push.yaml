@@ -1,0 +1,12 @@
+# policies/presets/github-no-force-push.yaml
+version: "1.0"
+agent_id: "*"
+upstream_service: "github_api"
+rules:
+  - name: "block_force_push"
+    match: "request.method == 'POST' || request.method == 'PATCH'"
+    deny_if: "has(request.body.force) && request.body.force == true"
+
+  - name: "block_delete_main_branch"
+    match: "request.method == 'DELETE'"
+    deny_if: "request.path.endsWith('/refs/heads/main') || request.path.endsWith('/refs/heads/master')"

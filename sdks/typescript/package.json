@@ -1,0 +1,14 @@
+{
+  "name": "@aegis-auth/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK & MCP middleware for Aegis zero-trust agentic gateway",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "keywords": ["aegis", "oauth", "agents", "mcp", "security", "zero-trust"],
+  "author": "Aegis Contributors",
+  "license": "MIT",
+  "dependencies": {}
+}

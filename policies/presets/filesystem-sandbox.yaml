@@ -1,0 +1,8 @@
+# policies/presets/filesystem-sandbox.yaml
+version: "1.0"
+agent_id: "*"
+upstream_service: "*"
+rules:
+  - name: "block_system_file_writes"
+    match: "request.tool == 'write_file' || request.tool == 'edit_file'"
+    deny_if: "string(request.args.path).contains('/etc/') || string(request.args.path).contains('.ssh') || string(request.args.path).contains('.env')"

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aegis — Policy Sandbox & CEL Simulator</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    .sim-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+    @media (max-width: 768px) {
+      .sim-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/" class="logo-badge">
+      <div class="logo-shield">A</div>
+      <span>AEGIS POLICIES</span>
+    </a>
+    <nav>
+      <a href="/">Overview</a>
+      <a href="/policies.html" class="active">Policies</a>
+      <a href="/audit.html">Audit Trail</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <div class="hero">
+      <h1>Deterministic Transactional Sandbox</h1>
+      <p>Evaluate semantic HTTP and MCP tool call payloads against declarative Google CEL rules in microseconds.</p>
+    </div>
+
+    <div class="sim-grid">
+      <div class="card">
+        <h2 style="font-size: 1.125rem; margin-bottom: 1rem;">Policy Simulator</h2>
+        <div class="form-group">
+          <label>Agent ID</label>
+          <input type="text" id="sim-agent" class="form-control" value="finance-reconciler-bot">
+        </div>
+        <div class="form-group">
+          <label>Target Service</label>
+          <input type="text" id="sim-service" class="form-control" value="stripe_prod">
+        </div>
+        <div class="form-group">
+          <label>HTTP Method / MCP Tool</label>
+          <div style="display: flex; gap: 0.5rem;">
+            <select id="sim-method" class="form-control" style="width: 120px;">
+              <option value="POST">POST</option>
+              <option value="GET">GET</option>
+              <option value="DELETE">DELETE</option>
+              <option value="TOOL">MCP TOOL</option>
+            </select>
+            <input type="text" id="sim-path" class="form-control" value="/v1/refunds">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Payload Body (JSON)</label>
+          <textarea id="sim-body" class="form-control" rows="6" style="resize: vertical;">{
+  "amount": 3500,
+  "currency": "usd",
+  "reason": "duplicate_charge"
+}</textarea>
+        </div>
+        <button class="btn btn-primary" style="width: 100%;" onclick="runSimulation()">Evaluate with CEL</button>
+      </div>
+
+      <div class="card">
+        <h2 style="font-size: 1.125rem; margin-bottom: 1rem;">Simulation Verdict</h2>
+        <div id="sim-output" style="min-height: 240px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; border: 1px dashed var(--border-color); border-radius: 8px; padding: 2rem;">
+          <p style="color: var(--text-muted);">Configure payload on left and click "Evaluate with CEL" to simulate sandbox enforcement.</p>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: 3rem;">
+      <h2 style="font-size: 1.25rem; margin-bottom: 1rem;">Active Declarative YAML Rules</h2>
+      <div class="card" style="padding: 0; overflow: hidden;">
+        <table>
+          <thead>
+            <tr>
+              <th>Rule Name</th>
+              <th>Match Expression</th>
+              <th>Enforcement Logic</th>
+              <th>Escalation Approvers</th>
+            </tr>
+          </thead>
+          <tbody id="rules-table">
+            <tr>
+              <td><code>allow_small_refunds</code></td>
+              <td><code>request.method == 'POST' && request.path == '/v1/refunds'</code></td>
+              <td><span class="badge badge-green">ALLOW</span> <code>int(request.body.amount) <= 2500</code></td>
+              <td>-</td>
+            </tr>
+            <tr>
+              <td><code>escalate_medium_refunds</code></td>
+              <td><code>request.method == 'POST' && request.path == '/v1/refunds'</code></td>
+              <td><span class="badge badge-amber">ESCALATE</span> <code>int(request.body.amount) > 2500 && int(request.body.amount) <= 50000</code></td>
+              <td><code>telegram:admin_chat</code>, <code>webpush:owner</code></td>
+            </tr>
+            <tr>
+              <td><code>block_destructive_sql</code></td>
+              <td><code>request.tool == 'execute_query'</code></td>
+              <td><span class="badge badge-red">DENY</span> <code>sql.is_destructive(string(request.args.query))</code></td>
+              <td>-</td>
+            </tr>
+            <tr>
+              <td><code>block_dangerous_bash</code></td>
+              <td><code>request.tool == 'run_command'</code></td>
+              <td><span class="badge badge-amber">ESCALATE</span> <code>bash.is_dangerous(string(request.args.command))</code></td>
+              <td><code>discord:security_channel</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    async function runSimulation() {
+      const output = document.getElementById('sim-output');
+      output.innerHTML = '<p style="color: var(--text-muted);">Evaluating expression...</p>';
+
+      const method = document.getElementById('sim-method').value;
+      const path = document.getElementById('sim-path').value;
+      const agent = document.getElementById('sim-agent').value;
+      const service = document.getElementById('sim-service').value;
+      let body = {};
+      try {
+        body = JSON.parse(document.getElementById('sim-body').value);
+      } catch(e) {
+        output.innerHTML = '<p style="color: var(--accent-rose);">Invalid JSON in payload body</p>';
+        return;
+      }
+
+      try {
+        const res = await fetch('/v1/sandbox/simulate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            method: method === 'TOOL' ? 'POST' : method,
+            path: path,
+            body: body,
+            tool: method === 'TOOL' ? path : '',
+            args: method === 'TOOL' ? body : {},
+            agent_id: agent,
+            service: service
+          })
+        });
+
+        const data = await res.json();
+        let badgeClass = 'badge-green';
+        if (data.decision === 'ESCALATE') badgeClass = 'badge-amber';
+        if (data.decision === 'DENY') badgeClass = 'badge-red';
+
+        output.innerHTML = `
+          <div style="width: 100%; text-align: left;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <span class="badge ${badgeClass}" style="font-size: 1rem; padding: 0.375rem 0.75rem;">${data.decision}</span>
+              <span style="font-size: 0.75rem; color: var(--text-muted);">Matched: <code>${data.matched_rule || 'default'}</code></span>
+            </div>
+            <p style="margin-bottom: 1rem; font-size: 1.0625rem; font-weight: 600;">${data.reason}</p>
+            ${data.approvers ? `<p style="font-size: 0.875rem; color: var(--text-muted);">Target Approvers: <code>${data.approvers.join(', ')}</code></p>` : ''}
+            <pre style="margin-top: 1rem;"><code>${JSON.stringify(data, null, 2)}</code></pre>
+          </div>
+        `;
+      } catch (err) {
+        output.innerHTML = '<p style="color: var(--accent-rose);">Simulation failed: ' + err.message + '</p>';
+      }
+    }
+  </script>
+</body>
+</html>

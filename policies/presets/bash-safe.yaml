@@ -1,0 +1,8 @@
+# policies/presets/bash-safe.yaml
+version: "1.0"
+agent_id: "*"
+upstream_service: "*"
+rules:
+  - name: "block_dangerous_shell"
+    match: "request.tool == 'run_command' || request.tool == 'execute_bash'"
+    deny_if: "bash.is_dangerous(string(request.args.command))"

@@ -1,0 +1,14 @@
+# policies/presets/gmail-draft-only.yaml
+version: "1.0"
+agent_id: "*"
+upstream_service: "gmail_api"
+rules:
+  - name: "allow_draft_creation"
+    match: "request.method == 'POST' && request.path.endsWith('/drafts')"
+    allow_if: "true"
+
+  - name: "escalate_send_message"
+    match: "request.method == 'POST' && request.path.endsWith('/messages/send')"
+    escalate_if: "true"
+    approvers: ["telegram:owner"]
+    timeout_seconds: 600

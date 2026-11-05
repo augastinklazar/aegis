@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aegis — Agentic Zero-Trust Gateway</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <a href="/" class="logo-badge">
+      <div class="logo-shield">A</div>
+      <span>AEGIS AUTH</span>
+    </a>
+    <nav>
+      <a href="/" class="active">Overview</a>
+      <a href="/policies.html">Policies</a>
+      <a href="/audit.html">Audit Trail</a>
+      <a href="https://github.com/augastinklazar/aegis" target="_blank">Docs</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <div class="hero">
+      <h1>Autonomous Agent Zero-Trust Gateway</h1>
+      <p>Deterministic Transactional Sandboxing, Phantom Token Credential Injection, and Passkey Human-in-the-Loop Escalation for LLM Agents.</p>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="card-title">Pending Human Approvals</div>
+        <div class="card-value" id="val-pending" style="color: var(--accent-amber);">0</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Registered Agents</div>
+        <div class="card-value" id="val-agents" style="color: var(--accent-blue);">0</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Vaulted Upstream Keys</div>
+        <div class="card-value" id="val-vault" style="color: var(--accent-green);">0</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Audited Tool Calls</div>
+        <div class="card-value" id="val-audits">0</div>
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+      <h2 style="font-size: 1.25rem;">Active Escalations (HITL Queue)</h2>
+      <button class="btn btn-secondary" onclick="loadDashboard()">Refresh</button>
+    </div>
+
+    <div class="card" style="padding: 0; overflow: hidden; margin-bottom: 2.5rem;">
+      <table>
+        <thead>
+          <tr>
+            <th>Request ID</th>
+            <th>Agent ID</th>
+            <th>Service / Action</th>
+            <th>Reason</th>
+            <th>Timeout</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="pending-table">
+          <tr><td colspan="6" style="text-align:center; color: var(--text-muted);">No pending escalation requests</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 style="font-size: 1.25rem; margin-bottom: 1rem;">Registered Agents</h2>
+    <div class="card" style="padding: 0; overflow: hidden;">
+      <table>
+        <thead>
+          <tr>
+            <th>Agent ID</th>
+            <th>Name</th>
+            <th>Model Provider</th>
+            <th>Allowed Services</th>
+            <th>Registered At</th>
+          </tr>
+        </thead>
+        <tbody id="agents-table">
+          <tr><td colspan="5" style="text-align:center; color: var(--text-muted);">Loading registered agents...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <script>
+    async function loadDashboard() {
+      try {
+        const [pendingRes, agentsRes, vaultRes, auditRes] = await Promise.all([
+          fetch('/v1/hitl/pending').then(r => r.json()),
+          fetch('/v1/agents').then(r => r.json()),
+          fetch('/v1/vault/services').then(r => r.json()),
+          fetch('/v1/audit?limit=1').then(r => r.json())
+        ]);
+
+        document.getElementById('val-pending').innerText = pendingRes.length || 0;
+        document.getElementById('val-agents').innerText = agentsRes.length || 0;
+        document.getElementById('val-vault').innerText = vaultRes.services ? vaultRes.services.length : 0;
+        document.getElementById('val-audits').innerText = auditRes.length ? auditRes[0].seq : 0;
+
+        const pTable = document.getElementById('pending-table');
+        if (pendingRes.length === 0) {
+          pTable.innerHTML = '<tr><td colspan="6" style="text-align:center; color: var(--text-muted); padding: 2rem;">No pending approvals in queue. All systems green.</td></tr>';
+        } else {
+          pTable.innerHTML = pendingRes.map(p => `
+            <tr>
+              <td><code>${p.id}</code></td>
+              <td><span class="badge badge-blue">${p.agent_id}</span></td>
+              <td><strong>${p.service}</strong>: ${p.action}</td>
+              <td style="color: #cbd5e1;">${p.reason || 'No natural language reason provided'}</td>
+              <td><code>${p.timeout_seconds}s</code></td>
+              <td><a href="/approve.html?id=${p.id}" class="btn btn-primary" style="padding: 0.35rem 0.75rem; font-size: 0.75rem;">Review & Sign</a></td>
+            </tr>
+          `).join('');
+        }
+
+        const aTable = document.getElementById('agents-table');
+        if (agentsRes.length === 0) {
+          aTable.innerHTML = '<tr><td colspan="5" style="text-align:center; color: var(--text-muted); padding: 2rem;">No agents registered. Register an agent via POST /v1/agents/register</td></tr>';
+        } else {
+          aTable.innerHTML = agentsRes.map(a => `
+            <tr>
+              <td><code>${a.agent_id}</code></td>
+              <td><strong>${a.name}</strong></td>
+              <td><span class="badge badge-amber">${a.model_provider}</span></td>
+              <td>${(a.allowed_services || []).join(', ') || '*'}</td>
+              <td>${new Date(a.registered_at).toLocaleTimeString()}</td>
+            </tr>
+          `).join('');
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    loadDashboard();
+    setInterval(loadDashboard, 4000);
+  </script>
+</body>
+</html>

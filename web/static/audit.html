@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aegis — Tamper-Evident Merkle Audit Trail</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <a href="/" class="logo-badge">
+      <div class="logo-shield">A</div>
+      <span>AEGIS AUDIT</span>
+    </a>
+    <nav>
+      <a href="/">Overview</a>
+      <a href="/policies.html">Policies</a>
+      <a href="/audit.html" class="active">Audit Trail</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <div class="hero" style="display: flex; justify-content: space-between; align-items: flex-end;">
+      <div>
+        <h1>Cryptographic Merkle Audit Trail</h1>
+        <p>Every tool call, policy evaluation, and Passkey signature is appended to an immutable SHA-256 hash-chained ledger.</p>
+      </div>
+      <div>
+        <button class="btn btn-primary" onclick="verifyChain()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          Verify Chain Integrity
+        </button>
+      </div>
+    </div>
+
+    <div id="verify-banner" style="display: none; padding: 1rem 1.25rem; border-radius: 8px; margin-bottom: 2rem;"></div>
+
+    <div class="card" style="padding: 0; overflow-x: auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Seq</th>
+            <th>Timestamp</th>
+            <th>Agent ID</th>
+            <th>Service / Action</th>
+            <th>Decision</th>
+            <th>Payload Hash</th>
+            <th>Record Hash</th>
+            <th>Approver</th>
+          </tr>
+        </thead>
+        <tbody id="audit-table">
+          <tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading audit trail...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <script>
+    async function loadAuditLog() {
+      try {
+        const res = await fetch('/v1/audit?limit=50');
+        const data = await res.json();
+        const tbody = document.getElementById('audit-table');
+        if (!data || data.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 2rem;">No tool calls recorded yet. All agent activities will appear here in real time.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = data.map(entry => {
+          let badgeClass = 'badge-green';
+          if (entry.decision === 'DENIED') badgeClass = 'badge-red';
+          if (entry.decision.includes('ESCALATED')) badgeClass = 'badge-amber';
+
+          return `
+            <tr>
+              <td><strong>#${entry.seq}</strong></td>
+              <td style="color: var(--text-muted); font-size: 0.75rem;">${new Date(entry.timestamp).toLocaleTimeString()}</td>
+              <td><code>${entry.agent_id}</code></td>
+              <td><strong>${entry.service}</strong>: ${entry.action}</td>
+              <td><span class="badge ${badgeClass}">${entry.decision}</span></td>
+              <td><code title="${entry.payload_hash}">${entry.payload_hash.substring(0, 8)}...</code></td>
+              <td><code title="${entry.record_hash}">${entry.record_hash.substring(0, 8)}...</code></td>
+              <td style="font-size: 0.75rem; color: #94a3b8;">${entry.approver ? `${entry.approver} <span class="badge badge-green" style="font-size:0.65rem;">Passkey</span>` : '-'}</td>
+            </tr>
+          `;
+        }).join('');
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function verifyChain() {
+      const banner = document.getElementById('verify-banner');
+      banner.style.display = 'block';
+      banner.style.background = 'rgba(56, 189, 248, 0.15)';
+      banner.style.color = '#38bdf8';
+      banner.innerHTML = 'Verifying cryptographic SHA-256 chain from genesis block...';
+
+      try {
+        const res = await fetch('/v1/audit/verify');
+        const data = await res.json();
+        if (data.valid) {
+          banner.style.background = 'rgba(16, 185, 129, 0.15)';
+          banner.style.color = '#34d399';
+          banner.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+          banner.innerHTML = `<strong>✓ Cryptographic Proof Verified (SOC-2 / HIPAA Grade)</strong><br><small>Chain Valid across ${data.total_blocks} blocks. Tip Hash: <code>${data.tip_hash}</code></small>`;
+        } else {
+          banner.style.background = 'rgba(244, 63, 94, 0.15)';
+          banner.style.color = '#fb7185';
+          banner.innerHTML = `<strong>✗ Hash Chain Compromise Detected!</strong> Block sequence #${data.broken_seq} failed integrity check.`;
+        }
+      } catch (err) {
+        banner.innerHTML = 'Verification error: ' + err.message;
+      }
+    }
+
+    loadAuditLog();
+    setInterval(loadAuditLog, 3000);
+  </script>
+</body>
+</html>

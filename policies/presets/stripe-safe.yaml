@@ -1,0 +1,18 @@
+# policies/presets/stripe-safe.yaml
+version: "1.0"
+agent_id: "*"
+upstream_service: "stripe_prod"
+rules:
+  - name: "allow_micro_refunds"
+    match: "request.method == 'POST' && request.path == '/v1/refunds'"
+    allow_if: "int(request.body.amount) <= 2500"
+
+  - name: "escalate_standard_refunds"
+    match: "request.method == 'POST' && request.path == '/v1/refunds'"
+    escalate_if: "int(request.body.amount) > 2500 && int(request.body.amount) <= 50000"
+    approvers: ["telegram:finance_team", "webpush:owner"]
+    timeout_seconds: 300
+
+  - name: "block_catastrophic_refunds"
+    match: "request.method == 'POST' && request.path == '/v1/refunds'"
+    deny_if: "int(request.body.amount) > 50000"
